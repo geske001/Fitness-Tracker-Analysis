@@ -1,0 +1,351 @@
+---
+title: "Bellabeat Tracker Analysis"
+output:
+  html_document: default
+date: "2024-09-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+############################
+## Introduction and background ##
+############################
+
+##### This is a Bellabeat data analysis study in which we will try to extrapolate some insights from the given datasets. Bellabeat (women's focused) is an app that is used to communicate with Fitbit devices, such as the "Leaf" which is a tracker that can be worn as a bracelet, necklace or clip. Time is another device that the Bellabeat app communicates with to track activity, sleep and stress. Bellabeat offers a subscription-based memberships that gives a user access to personalized guidance, around the clock throughout the year, about nutrition, fitness, sleep, overall health based on their lifestyle and goals. Our goal is to gain some insights to present for possible recommendations to improve the app and gain additional interest to other potential customers.
+
+###########################
+## Uploading CSV files to R ##
+###########################
+
+##### We obtained our datasets from: https://www.kaggle.com/arashnic/fitbit These datasets are ROCCC. We observed that this data was given by FitBit Tracker. Thus, as long as the data from the FitBit itself is reliable, we can assume that the dataset is reliable as well. All of the datasets were stored in a secure location on posit.cloud. The data is not current. However, we should be able to gain some insights from the data given. There is a limited amount of users in the dataset. So, the sample size is a little small, and would help with biased data, but the data is comprehensive.
+
+################################################
+## Installing and loading common packages and libraries ##
+################################################
+
+##### Install and load the tidyverse, lubridate, and dplyr libraries to be able to use some common functions that are embedded into those libraries
+
+```{R}
+install.packages('tidyverse')
+install.packages('lubridate')
+install.packages('dplyr')
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+```
+
+#####################
+## Load CSV files ##
+#####################
+
+##### We will create a dataframe named 'daily_activity' and read in one of the CSV files from the dataset. Also, create a dataframe called sleep_day that contains data about the individuals sleep patterns.
+
+```{R}
+daily_activity <- read.csv("mturkfitbit_export_4.12.16-5.12.16/dailyActivity_merged.csv")
+sleep_day <- read.csv("mturkfitbit_export_4.12.16-5.12.16/sleepDay_merged.csv")
+```
+
+#########################
+## Explore a few key tables
+#########################
+
+##### Take a look at the daily_activity data. We can see the column names, what kind of data is stores in each of those column's rows, and the data type of each column.
+
+```{R}
+head(daily_activity)
+```
+
+## Identify all the columns in the daily_activity data.
+
+```{R}
+colnames(daily_activity)
+```
+
+## Take a look at the sleep_day data.
+
+```{R}
+head(sleep_day)
+```
+
+## Identify all the columns in the sleep_day data.
+
+```{R}
+colnames(sleep_day)
+```
+
+##### Note that both datasets have the 'Id' field - this can be used to join the datasets.
+
+#####################################
+## Understanding some summary statistics ##
+#####################################
+
+##### How many unique participants are there in each dataframe? It looks like there may be more participants in the daily activity dataset than the sleep dataset.
+
+```{R}
+n_distinct(daily_activity$Id)
+n_distinct(sleep_day$Id)
+```
+
+## Check to see how many rows of data are in the two dataframes daily_activity and sleep_day.
+
+```{R}
+nrow(daily_activity)
+nrow(sleep_day)
+```
+
+## Summary for the daily activity dataframe:
+##### We can observe minimum, maximum, mean and median of Total steps, Total distance, and Sedentary minutes.
+
+```{R}
+daily_activity %>%
+select(TotalSteps,
+TotalDistance,
+SedentaryMinutes) %>%
+summary()
+```
+
+## Summary for the sleep dataframe:
+##### We can observe the minimum, maximum, mean, and median minutes of the total sleep records, total minutes asleep, and total minutes in bed. We can use a couple comparisons to see typically how long it takes people to fall asleep after they lay down to go to bed/sleep.
+
+```{R}
+sleep_day %>%
+select(TotalSleepRecords,
+TotalMinutesAsleep,
+TotalTimeInBed) %>%
+summary()
+```
+
+## Day of the week
+##### In this daily_activity dataframe structure, we notice that the date is stored as a chr format. So, we need lubridate to convert that column into date format. We chose month, day, then year format for the date.
+
+```{R}
+str(daily_activity)
+daily_activity$ActivityDate <-lubridate::mdy(daily_activity$ActivityDate)
+```
+
+## Verification for data format of the date column
+##### We then will reobserve the dataframe to see if the column has been converted to a date format that we can use to apply a function later on. We also check a tibble of the dataframe to confirm that our date is in the format stated in the structure.
+
+```{R}
+str(daily_activity)
+```
+
+## Add a column for the day of the week
+##### We then will add a new column to the dataframe that will display the day of the week of each date, and name the column day_of_week. We also want to confirm that the day_of_week is identified properly by displaying a tibble of the evolving dataframe.
+
+```{R}
+daily_activity$day_of_week <- wday(daily_activity$ActivityDate, label = TRUE, abbr = FALSE)
+head(daily_activity)  #observe our changes for accuracy in coding
+```
+
+
+### We want to see if we can gain some insights of people's daily activities.
+
+##########################
+## Plotting a few explorations ##
+##########################
+
+```{R}
+ggplot(data=daily_activity, aes(x=TotalSteps, y=SedentaryMinutes)) + geom_point() + 
+  geom_smooth() +
+  labs(title = "Total Sedentary Minutes vs. Total Steps", x="Sedentary Minutes", y="Total Steps")
+```
+
+## Summarize TotalSteps for each day of the week
+
+```{R}
+total_steps_by_day <- data.frame(Id = daily_activity$Id, TotalSteps = daily_activity$TotalSteps, day_of_week = daily_activity$day_of_week) %>%  #create a dataframe that narrows down daily_activity
+  group_by(Id, day_of_week) %>%  #and group each of the entries by the day of the week
+  summarize(total_value = sum(TotalSteps), .groups = 'drop')  #we then count the steps taken by the day of the week
+head(total_steps_by_day)   #observe the changes that we made
+```
+
+##### We can see that we can display a total number of steps, per user, of how many steps are taken, by the day of the week. We wish to see if there is a trend on "lazy days" vs "active days". We gave each user a different color to be able to view across the days of the week the steps taken. We can then try to see if any particular users stand out. Some are more active, some are less active, and some are in between. Perhaps we can gain some motivation to offer users of slowing trends to those active users, or motivate less active users to become a little more active.
+
+```{r fig.height=5, fig.width=12}
+ggplot(data=total_steps_by_day, aes(x=day_of_week, y=total_value, fill= as.factor(Id)))+
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(x = "Day of the Week", y = "Total Steps", fill = "ID", title = " Total Steps Each Day of the Week by ID")+
+  # facet_wrap(~day_of_week,ncol = 4, scales = 'free')+
+  # theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### We then take our focus on sleep. Plotting the total minutes in bed vs the total time asleep. This will give us some insight as to how long users are taking to fall asleep.
+
+```{R}
+ggplot(data=sleep_day, aes(x=TotalMinutesAsleep, y=TotalTimeInBed)) + geom_point() +
+  geom_smooth()+
+  labs(x= "Total Time in Bed", y= "Total Minutes Asleep", title = "Total Minutes in Bed vs. Total Minutes Asleep")
+```
+
+### Adding a day of the week column (Sun-Sat) to the sleep_day dataframe
+
+```{R}
+head(sleep_day)  #we observe the sleep_day dataframe for the date format
+sleep_day$SleepDay <- as.POSIXct(sleep_day$SleepDay, format = "%m/%d/%Y %I:%M:%S %p")
+sleep_day$SleepDay <- as.Date(sleep_day$SleepDay)
+sleep_day$day_of_week <- wday(sleep_day$SleepDay, label = TRUE, abbr = FALSE) #convert the date column to date type
+sleep_day$time_to_fall_asleep <- as.numeric(sleep_day$TotalTimeInBed-sleep_day$TotalMinutesAsleep) #we then make a new column that will record the total time that it takes to fall asleep.
+head(sleep_day) #oberve the changes and that they are what we intended to do
+```
+
+# What does the CDC say about sleep time and daily activity? 
+##### We want to plot two graphs here. 
+##### One showing the amount of time in bed combined with the amount of time actually asleep by average time by day of the week. We added a blue dotted line to indicate where the CDC (according to cdc,gov) recommends the amount of sleep per day (420 minutes). In each bar contains the exact number of our findings.
+
+```{r}
+df_summary <- data.frame(day_of_week = sleep_day$day_of_week, 
+                         total_in_bed = sleep_day$TotalTimeInBed, 
+                         total_sleep = sleep_day$TotalMinutesAsleep, 
+                         time_to_fall_asleep = sleep_day$time_to_fall_asleep) %>% #make a new dataframe focusing on the day of the week, total time in bed, and total minutes asleep
+  group_by(day_of_week) %>%
+  summarise(avg_bed = mean(total_in_bed, na.rm = TRUE), 
+            avg_sleep = mean(total_sleep, na.rm = TRUE), #we then want to get the averages to display
+            avg_time_to_fall_asleep = mean(time_to_fall_asleep, na.rm = TRUE)) %>%
+  pivot_longer(cols = c(avg_bed, avg_sleep, avg_time_to_fall_asleep),
+               names_to = "metric", values_to = "value")
+ggplot(df_summary %>% filter(metric %in% c("avg_bed", "avg_sleep")), aes(x = day_of_week, y = value, fill = metric)) + #we then plot our table
+  geom_bar(stat = "identity", position = "dodge") +  # Position bars side by side
+  scale_fill_manual(values = c("avg_sleep" = "skyblue", "avg_bed" = "orange")) +  # Separate colors for bars
+  labs(x = "Day of the Week", y = "Average Time (Minutes)", title = "Average Minutes Asleep and Time in Bed by Day of the Week") +
+  geom_text(aes(label = round(value,1)),
+            position = position_dodge(width = 0.9),
+            vjust = 1.0, size = 3) +
+  geom_hline(yintercept = 420, linetype = "dashed", color = "blue") +  # Add horizontal line at 420 minutes
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+##### and the other graph will display the average time taken to fall asleep from when one would get into bed. Perhaps we can motivate or advise users to fall alseep faster, especially on days of the week that are prominately days that take longer to fall asleep.
+
+```{r}
+ggplot(df_summary %>% filter(metric == "avg_time_to_fall_asleep"), aes(x = day_of_week, y = value, fill = day_of_week)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Average Time to Fall Asleep by Day of the Week",
+       x = "Day of the Week",
+       y = "Average Time to Fall Asleep (Minutes)") +
+  geom_text(aes(label = round(value,1)),
+            position = position_dodge(width = 0.9),
+            vjust = -0.3, size = 3) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")  #Set a color palette
+```
+
+##################################
+## Joining these two datasets together ##
+##################################
+
+##### Join by the Id AND by the date
+
+```{r}
+# First we will need to verify that the date columns between the 2 dataframes that we want to join are of the same data type
+head(sleep_day)
+head(daily_activity)
+# Both check out to match
+# Now we want to perform a join based on matching the date columns AND the Ids
+merged_data <- full_join(sleep_day, daily_activity, 
+                          by = c("Id" = "Id", "SleepDay" = "ActivityDate"))
+head(merged_data)
+num_null_rows <- sum(!complete.cases(merged_data)) #we want to observe how many rows contain null or empty entries
+num_null_rows
+```
+
+##### Notice above that there exists 530 rows that contain null values. This indicates incomplete data.
+
+## Take a look at how many participants, days sleep daily activity has recordings (before and after the join) in this data set.
+
+```{R}
+n_distinct(merged_data$Id) #find the number of distict Id's, days for sleep, days for activity
+n_distinct(sleep_day$SleepDay)
+n_distinct(daily_activity$ActivityDate)
+n_distinct(merged_data$SleepDay) #we then find the distinct sleep days and compare with our merged dataframe
+head(merged_data) #we then observe the column names and types for analysis
+```
+
+## According to CDC guidelines for aerobic activity.
+##### The CDC (cdc.gov)recommends at least 150 minutes of moderate-intensity aerobic activity per week. The CDC recommendation also states that the 150 minutes per week of moderate can be broken up to 22 minutes per day. Since our data contains users that do not have data for all 31 days, we will consider just days in general and generate a graph to see how often people get that much exercise in a day. So, we wish to observe how often the 22 minutes per day are fullfilled, per user. We will indicate the number of entries that do fullfill the CDC recommendations with a green number count, and red number count for those that do not fullfill the CDC recommendations.
+
+##### We will then add a column to our merged data that adds the FairlyActiveMinutes and VeryActiveMinutes as Moderate or more activity by day.
+
+```{R}
+merged_data$Moderate_or_More_Active_Minutes<-merged_data$FairlyActiveMinutes+merged_data$VeryActiveMinutes
+head(merged_data)
+```
+
+## We will now present our findings to see how much of our sample is being active enough by CDC recommendations.
+
+```{R fig.width=10, fig.height=6}
+# Add the count of points (dots) per day above each day
+# First, calculate the count of points per day
+point_counts <- merged_data %>%
+  group_by(SleepDay) %>%
+  summarise(count = n(),above_22 = sum(Moderate_or_More_Active_Minutes>22),below_22 = sum(Moderate_or_More_Active_Minutes <= 22))
+# Now plot the graph to show the line of minutes of moderate or more activity the CDC recommends per day
+par(pin = c(15,10))# set the size of the graph
+ggplot(data=merged_data, aes(x = SleepDay, y = Moderate_or_More_Active_Minutes))+
+  geom_point()+
+  geom_smooth()+
+   geom_hline(yintercept = 22, linetype = "dashed", color = "blue") +  # Add horizontal line at y = 22
+  labs(title = "Moderate or More Active Minutes by date", x="Date", y="Minutes",subtitle = "(Green numbers indicate # of entries in CDC recommendations; Red is # Below CDC recommendations)")+
+  geom_text(data = point_counts, aes(x = SleepDay, y = max(merged_data$Moderate_or_More_Active_Minutes) + 10, 
+                                     label = count), size = 3, vjust = -0.5)+
+    # Add the count of points above the line for each day
+  geom_text(data = point_counts, aes(x = SleepDay, y = 22 + 200, label = paste("", above_22)), 
+            color = "#006400", fontface = "bold", size = 3, vjust = 0) +
+  
+  # Add the count of points below the line for each day
+  geom_text(data = point_counts, aes(x = SleepDay, y = 22 - 25, label = paste("", below_22)), 
+            color = "red", fontface = "bold", size = 3, vjust = 1) +
+  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## According to CDC Guidelines for daily sleep.
+##### The CDC recommends getting at least 7 hours (420 minutes) of sleep per day for a healthy sleep amount.
+
+```{R}
+head(merged_data)
+asleep_summary<-merged_data%>%
+  select(SleepDay, TotalMinutesAsleep)
+head(asleep_summary)
+```
+
+## Now let's plot the sleep per day
+##### We will plot the graph with the same indicators that we used for the total moderate or more activity for the amount of sleep per day. A horizontal line will be created to show the CDC recommendation (420 minutes), and the dots will indicate the plots, with green and red numbers that will indicate the amount of "enough" sleep and "not enough" sleep. The total dots per day will be displayed at the top again to show the percentage of plots with the appropriate plots above and below the horizontal line.
+
+```{R fig.width=10, fig.height=6}
+# Add the count of points (dots) per day above each day
+# First, calculate the count of points per day
+point_counts_sleep <- asleep_summary %>%
+  group_by(SleepDay) %>%
+  summarise(count = n(),above_420 = sum(TotalMinutesAsleep>420, na.rm = TRUE),below_420 = sum(TotalMinutesAsleep <= 420, na.rm = TRUE))
+point_counts_sleep$total_plots_of_sleep <-point_counts_sleep$above_420+point_counts_sleep$below_420
+head(point_counts_sleep)
+# Now plot the graph to show the line of minutes of moderate or more activity the CDC recommends per day
+#par(pin = c(15,10))# set the size of the graph
+ggplot(data=asleep_summary, aes(x = SleepDay, y = TotalMinutesAsleep))+
+  geom_point()+
+  geom_smooth()+
+   geom_hline(yintercept = 420, linetype = "dashed", color = "blue") +  # Add horizontal line at y = 22
+  labs(title = "Total Sleep Minutes by date", x="Date", y="Minutes",subtitle = "(Green numbers indicate entries in CDC recommendations; Red is Below CDC recommendations)")+
+  geom_text(data = point_counts_sleep, aes(x = SleepDay, y = max(point_counts_sleep$total_plots_of_sleep) + 780, 
+                                     label = total_plots_of_sleep), size = 3, vjust = -0.5)+
+    # Add the count of points above the line for each day
+  geom_text(data = point_counts_sleep, aes(x = SleepDay, y = 420 + 300, label = paste("", above_420)), 
+            color = "#006400", fontface = "bold", size = 3, vjust = 0) +
+  
+  # Add the count of points below the line for each day
+  geom_text(data = point_counts_sleep, aes(x = SleepDay, y = 420 - 250, label = paste("", below_420)), 
+            color = "red", fontface = "bold", size = 3, vjust = 1) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## Conclusion
+##### We were given some datasets about the Bellabeat app and its devices from volunteered users. We have analyzed some sleep and exercise patterns. We have indicated visually how the data was analyzed. Although with missing elements in the datasets, we have an even smaller amount of variables to work with. Do we miss data because of the device not working? Do we miss data because some of the users do not wear their fitness tracker all the time? We have filtered out missing data elements and used in our analysis the data that was complete before graphing. Attention was brought to the fact that in a daily recording with sleep and exercise was substantially different. We saw that there were 940 rows (or days) of recording of daily activity, but only 413 rows of sleep. We can see, with evidence, that we can improve the user's experience with the product by reminders, notifications or motivations of lacking patterns of insufficient sleep and activity. We can improve the market for this product by getting people more excited about the product that they are using and recommend the product to their friends and family. Because this product focuses on those who wish to become more fit and healthy, with the added features, we can make the experience a more pleasant and proactive one. 
